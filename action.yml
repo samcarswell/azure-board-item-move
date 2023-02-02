@@ -1,0 +1,18 @@
+name: 'Azure Board Item Move'
+description: 'Move Azure Board items based on commit messages when pushing'
+inputs:
+  ado_token:
+    description: 'Azure DevOps token with read, write and manage access to work items'
+    required: true
+  ado_org:
+    description: 'Azure DevOps organisation'
+    required: true
+  ado_project:
+    description: 'Azure DevOps project'
+    required: true
+  state:
+    description: 'State to update work items with'
+    required: true
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
