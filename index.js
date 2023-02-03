@@ -9,7 +9,8 @@ async function run() {
   const org = core.getInput('ado_org');
   const project = core.getInput('ado_project');
   const state = core.getInput('state');
-  await orchestrate(github.context.event.commits, token, org, project, state);
+  const commits = github.context.payload.commits.map((x) => x.message);
+  await orchestrate(commits, token, org, project, state);
 }
 
 run();
