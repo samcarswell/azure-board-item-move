@@ -36,13 +36,7 @@ export const updateAZItems = async (tags, newState, project, client) => {
       return successfulUpdate(`Item ${tag} is already assigned to state ${newState}`);
     }
 
-    const updatedWorkItem = await client.updateWorkItem(
-      [],
-      document,
-      id,
-      project,
-      false,
-    );
+    const updatedWorkItem = await client.updateWorkItem([], document, id, project, false);
     if (updatedWorkItem.fields[WORK_ITEM_STATE] !== newState) {
       failedUpdate(`Item ${tag} unable to be updated`);
     }
