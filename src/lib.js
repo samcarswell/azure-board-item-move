@@ -2,7 +2,8 @@ import * as azdev from 'azure-devops-node-api';
 
 const AZ_TAG_REGEX = /(AB#)[0-9]+/g;
 const ADO_URL = 'https://dev.azure.com';
-const WORK_ITEM_STATE = 'System.State';
+export const WORK_ITEM_STATE = 'System.State';
+export const STATE_CLOSED = 'Closed';
 
 export const throwIfNotPushEvent = (eventName) => {
   if (eventName !== 'push') {
@@ -19,7 +20,19 @@ const getIdFromTag = (tag) => tag.split('#')[1].trim();
 const failedUpdate = (message) => ({ success: false, message });
 const successfulUpdate = (message) => ({ success: true, message });
 
-export const updateAZItems = async (tags, newState, project, client) => {
+export const validateWorkItem = (workItem, newState, tag, reopenItems) => {
+  if (!workItem) return failedUpdate(`Error finding item with tag ${tag}`);
+  if (workItem.fields[WORK_ITEM_STATE] === newState) {
+    return successfulUpdate(`Item ${tag} is already assigned to state ${newState}`);
+  }
+
+  if (!reopenItems && workItem.fields[WORK_ITEM_STATE] === STATE_CLOSED) {
+    return successfulUpdate(`Item ${tag} has already been assigned to ${STATE_CLOSED} state`);
+  }
+  return null;
+};
+
+export const updateAZItems = async (tags, newState, project, client, reopenItems) => {
   const document = [
     {
       op: 'add',
@@ -31,10 +44,9 @@ export const updateAZItems = async (tags, newState, project, client) => {
   return Promise.all(tags.map(async (tag) => {
     const id = getIdFromTag(tag);
     const workItem = await client.getWorkItem(id);
-    if (!workItem) return failedUpdate(`Error finding item with tag ${tag}`);
-    if (workItem.fields[WORK_ITEM_STATE] === newState) {
-      return successfulUpdate(`Item ${tag} is already assigned to state ${newState}`);
-    }
+
+    const validationMessage = validateWorkItem(workItem, newState, tag, reopenItems);
+    if (validationMessage !== null) return validationMessage;
 
     const updatedWorkItem = await client.updateWorkItem([], document, id, project, false);
     if (updatedWorkItem.fields[WORK_ITEM_STATE] !== newState) {
