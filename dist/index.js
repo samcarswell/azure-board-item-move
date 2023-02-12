@@ -70312,12 +70312,13 @@ var core = __nccwpck_require__(2186);
 var github = __nccwpck_require__(5438);
 // EXTERNAL MODULE: ./node_modules/azure-devops-node-api/WebApi.js
 var WebApi = __nccwpck_require__(7967);
-;// CONCATENATED MODULE: ./lib.js
+;// CONCATENATED MODULE: ./src/lib.js
 
 
 const AZ_TAG_REGEX = /(AB#)[0-9]+/g;
 const ADO_URL = 'https://dev.azure.com';
 const WORK_ITEM_STATE = 'System.State';
+const STATE_CLOSED = 'Closed';
 
 const throwIfNotPushEvent = (eventName) => {
   if (eventName !== 'push') {
@@ -70334,7 +70335,19 @@ const getIdFromTag = (tag) => tag.split('#')[1].trim();
 const failedUpdate = (message) => ({ success: false, message });
 const successfulUpdate = (message) => ({ success: true, message });
 
-const updateAZItems = async (tags, newState, project, client) => {
+const validateWorkItem = (workItem, newState, tag, reopenItems) => {
+  if (!workItem) return failedUpdate(`Error finding item with tag ${tag}`);
+  if (workItem.fields[WORK_ITEM_STATE] === newState) {
+    return successfulUpdate(`Item ${tag} is already assigned to state ${newState}`);
+  }
+
+  if (!reopenItems && workItem.fields[WORK_ITEM_STATE] === STATE_CLOSED) {
+    return successfulUpdate(`Item ${tag} has already been assigned to ${STATE_CLOSED} state`);
+  }
+  return null;
+};
+
+const updateAZItems = async (tags, newState, project, client, reopenItems) => {
   const document = [
     {
       op: 'add',
@@ -70346,10 +70359,9 @@ const updateAZItems = async (tags, newState, project, client) => {
   return Promise.all(tags.map(async (tag) => {
     const id = getIdFromTag(tag);
     const workItem = await client.getWorkItem(id);
-    if (!workItem) return failedUpdate(`Error finding item with tag ${tag}`);
-    if (workItem.fields[WORK_ITEM_STATE] === newState) {
-      return successfulUpdate(`Item ${tag} is already assigned to state ${newState}`);
-    }
+
+    const validationMessage = validateWorkItem(workItem, newState, tag, reopenItems);
+    if (validationMessage !== null) return validationMessage;
 
     const updatedWorkItem = await client.updateWorkItem([], document, id, project, false);
     if (updatedWorkItem.fields[WORK_ITEM_STATE] !== newState) {
@@ -70365,16 +70377,16 @@ const getAZConnection = (token, adoOrg) => {
   return new WebApi.WebApi(`${ADO_URL}/${adoOrg}`, authHandler);
 };
 
-;// CONCATENATED MODULE: ./run.js
+;// CONCATENATED MODULE: ./src/run.js
 
 
 
-async function orchestrate(commits, token, org, project, state) {
+async function orchestrate(commits, token, org, project, state, reopenItems) {
   try {
     const tags = getTags(commits);
     const connection = getAZConnection(token, org);
     const client = await connection.getWorkItemTrackingApi();
-    const messages = await updateAZItems(tags, state, project, client);
+    const messages = await updateAZItems(tags, state, project, client, reopenItems);
     messages.forEach((x) => {
       if (x.success) {
         core.info(x.message);
@@ -70390,7 +70402,7 @@ async function orchestrate(commits, token, org, project, state) {
   }
 }
 
-;// CONCATENATED MODULE: ./index.js
+;// CONCATENATED MODULE: ./src/index.js
 
 
 
@@ -70402,8 +70414,9 @@ async function run() {
   const org = core.getInput('ado_org');
   const project = core.getInput('ado_project');
   const state = core.getInput('state');
+  const reopenItems = (core.getInput('reopen_items') === 'true');
   const commits = github.context.payload.commits.map((x) => x.message);
-  await orchestrate(commits, token, org, project, state);
+  await orchestrate(commits, token, org, project, state, reopenItems);
 }
 
 run();

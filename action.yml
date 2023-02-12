@@ -13,6 +13,10 @@ inputs:
   state:
     description: 'State to update work items with'
     required: true
+  reopen_items:
+    description: 'Moves items based on rules even if item is already in Closed state. Accepts true or false'
+    required: false
+    default: 'false'
 runs:
   using: 'node16'
   main: 'dist/index.js'
