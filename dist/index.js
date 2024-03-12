@@ -70359,13 +70359,23 @@ const updateAZItems = async (tags, newState, project, client, reopenItems) => {
   return Promise.all(tags.map(async (tag) => {
     const id = getIdFromTag(tag);
     const workItem = await client.getWorkItem(id);
-
     const validationMessage = validateWorkItem(workItem, newState, tag, reopenItems);
     if (validationMessage !== null) return validationMessage;
-
-    const updatedWorkItem = await client.updateWorkItem([], document, id, project, false);
-    if (updatedWorkItem.fields[WORK_ITEM_STATE] !== newState) {
-      failedUpdate(`Item ${tag} unable to be updated`);
+    
+    try {
+      const updatedWorkItem = await client.updateWorkItem([], document, id, project, false);
+      if (updatedWorkItem.fields[WORK_ITEM_STATE] !== newState) {
+        failedUpdate(`Item ${tag} unable to be updated`);
+      }
+    } catch (e) {
+      if (
+          e.statusCode === 400 && 
+          e.result.message === `The field 'State' contains the value '${newState}' that is not in the ` 
+            + 'list of supported values'
+      ) {
+        return successfulUpdate(`Skipping item ${tag}. State ${newState} not supported for this item type`)
+      }
+      return failedUpdate(e.result.message)
     }
 
     return successfulUpdate(`Item ${tag} successfully updated`);
